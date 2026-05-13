@@ -2,6 +2,10 @@
 
 **CLIMA-KIDS ALERT** is a production-oriented, open-source platform for real-time climate and environmental risk monitoring focused on protecting children’s health. The reference deployment context is **Kolwezi (DRC)**, with mining dust, seasonal winds, rainfall/flood exposure, and informal urban growth explicitly reflected in the risk model and map layers—while keeping the architecture reusable for other cities.
 
+**Repository:** [github.com/SolAgriTech-IT/clima-kids-alert](https://github.com/SolAgriTech-IT/clima-kids-alert)
+
+Do not commit `.env`, API keys, tokens, or certificates; use `.env.example` as a template only.
+
 ## Quick start (Docker)
 
 1. Copy environment template (optional; Compose provides safe defaults for local demos):
@@ -29,9 +33,9 @@ The admin account is **created on every backend startup if it is missing** (even
 
 Change this password immediately in any shared or production environment.
 
-## Déploiement sans Docker (O2S, mutualisé, VPS minimal)
+## Déploiement sans Docker (VPS, mutualisé)
 
-Le dossier **[App2](../App2/README.md)** (`../App2/`, au même niveau que ce répertoire `app/`) est une **copie complète** du projet, utilisée pour documenter et exploiter une mise en production **sans conteneurs** : une application **Python** (FastAPI) peut servir à la fois l’API et l’interface Next.js **exportée en fichiers statiques**, avec désactivation optionnelle de **Redis** et **Celery** (`USE_REDIS`, `USE_CELERY`, `STATIC_SITE_DIR`). Une alternative **Node + Python** (deux applications) y est aussi esquissée.
+Pour une mise en production **sans conteneurs** (FastAPI seul ou FastAPI + fichiers statiques Next.js, options Redis/Celery), suivez **`docs/DEPLOYMENT.md`** et le guide développeur **`docs/DEVELOPER.md`** (variables `USE_REDIS`, `USE_CELERY`, `STATIC_SITE_DIR`, etc.).
 
 ## Architecture
 

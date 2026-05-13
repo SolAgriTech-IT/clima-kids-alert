@@ -1,0 +1,135 @@
+# CLIMA-KIDS ALERT — full stack orchestration
+# Run: docker compose up --build
+#
+# Services: PostGIS, Redis, FastAPI API, Celery worker, Celery beat,
+#           Next.js frontend, Nginx reverse proxy.
+
+services:
+  db:
+    image: postgis/postgis:16-3.4
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-clima}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-clima_secret_change_me}
+      POSTGRES_DB: ${POSTGRES_DB:-clima_kids}
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-clima} -d ${POSTGRES_DB:-clima_kids}"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  redis:
+    image: redis:7-alpine
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 5
+
+  backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    healthcheck:
+      test: ["CMD", "curl", "-fsS", "http://127.0.0.1:8000/api/v1/health"]
+      interval: 15s
+      timeout: 5s
+      retries: 8
+      start_period: 50s
+    environment:
+      DATABASE_URL: ${DATABASE_URL:-postgresql+psycopg2://clima:clima_secret_change_me@db:5432/clima_kids}
+      REDIS_URL: ${REDIS_URL:-redis://redis:6379/0}
+      JWT_SECRET: ${JWT_SECRET:-dev_jwt_secret_change_in_production_min_32_chars}
+      CORS_ORIGINS: ${CORS_ORIGINS:-http://localhost,http://localhost:80}
+      # Shared SlowAPI counters (separate Redis DB from Celery broker DB 0)
+      RATE_LIMIT_STORAGE_URI: ${RATE_LIMIT_STORAGE_URI:-redis://redis:6379/1}
+      SENTINEL_HUB_ENABLED: ${SENTINEL_HUB_ENABLED:-false}
+      SENTINEL_HUB_BASE_URL: ${SENTINEL_HUB_BASE_URL:-https://services.sentinel-hub.com}
+      SENTINEL_HUB_CLIENT_ID: ${SENTINEL_HUB_CLIENT_ID:-}
+      SENTINEL_HUB_CLIENT_SECRET: ${SENTINEL_HUB_CLIENT_SECRET:-}
+      GEE_BRIDGE_URL: ${GEE_BRIDGE_URL:-}
+      GEE_BRIDGE_TOKEN: ${GEE_BRIDGE_TOKEN:-}
+      SEED_RESET_ADMIN_PASSWORD: ${SEED_RESET_ADMIN_PASSWORD:-false}
+    depends_on:
+      db:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    command: >
+      sh -c "
+        until alembic upgrade head; do echo 'Waiting for DB migrations...'; sleep 2; done &&
+        python -m app.scripts.seed &&
+        uvicorn app.main:app --host 0.0.0.0 --port 8000
+      "
+    expose:
+      - "8000"
+
+  celery_worker:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    environment:
+      DATABASE_URL: ${DATABASE_URL:-postgresql+psycopg2://clima:clima_secret_change_me@db:5432/clima_kids}
+      REDIS_URL: ${REDIS_URL:-redis://redis:6379/0}
+      SENTINEL_HUB_ENABLED: ${SENTINEL_HUB_ENABLED:-false}
+      SENTINEL_HUB_BASE_URL: ${SENTINEL_HUB_BASE_URL:-https://services.sentinel-hub.com}
+      SENTINEL_HUB_CLIENT_ID: ${SENTINEL_HUB_CLIENT_ID:-}
+      SENTINEL_HUB_CLIENT_SECRET: ${SENTINEL_HUB_CLIENT_SECRET:-}
+      GEE_BRIDGE_URL: ${GEE_BRIDGE_URL:-}
+      GEE_BRIDGE_TOKEN: ${GEE_BRIDGE_TOKEN:-}
+    depends_on:
+      db:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      backend:
+        condition: service_healthy
+    command: celery -A app.celery_app worker --loglevel=INFO
+
+  celery_beat:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    environment:
+      DATABASE_URL: ${DATABASE_URL:-postgresql+psycopg2://clima:clima_secret_change_me@db:5432/clima_kids}
+      REDIS_URL: ${REDIS_URL:-redis://redis:6379/0}
+      SENTINEL_HUB_ENABLED: ${SENTINEL_HUB_ENABLED:-false}
+      SENTINEL_HUB_BASE_URL: ${SENTINEL_HUB_BASE_URL:-https://services.sentinel-hub.com}
+      SENTINEL_HUB_CLIENT_ID: ${SENTINEL_HUB_CLIENT_ID:-}
+      SENTINEL_HUB_CLIENT_SECRET: ${SENTINEL_HUB_CLIENT_SECRET:-}
+      GEE_BRIDGE_URL: ${GEE_BRIDGE_URL:-}
+      GEE_BRIDGE_TOKEN: ${GEE_BRIDGE_TOKEN:-}
+    depends_on:
+      db:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      backend:
+        condition: service_healthy
+    command: celery -A app.celery_app beat --loglevel=INFO
+
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+      args:
+        NEXT_PUBLIC_API_BASE: /api/v1
+    depends_on:
+      - backend
+    expose:
+      - "3000"
+
+  nginx:
+    image: nginx:1.27-alpine
+    ports:
+      - "80:80"
+    volumes:
+      - ./nginx/nginx.conf:/etc/nginx/nginx.conf:ro
+      - ./nginx/conf.d:/etc/nginx/conf.d:ro
+    depends_on:
+      - backend
+      - frontend
+
+volumes:
+  postgres_data:

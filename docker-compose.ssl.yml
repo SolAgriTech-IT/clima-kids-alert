@@ -1,0 +1,23 @@
+# Optional TLS overlay for VPS deployments.
+#
+# Usage (after you have certificates on the host):
+#   docker compose -f docker-compose.yml -f docker-compose.ssl.yml up -d
+#
+# 1) Copy `nginx/conf.d/50-https.conf.example` → `nginx/conf.d/50-https.conf` and edit
+#    `server_name`, `ssl_certificate`, and `ssl_certificate_key`.
+# 2) Replace `nginx/conf.d/10-http.conf` with the ACME + redirect variant from
+#    `docs/TLS_NGINX_VPS.md` (recommended).
+# 3) Update paths below if your Let's Encrypt layout differs.
+
+services:
+  nginx:
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - ./nginx/nginx.conf:/etc/nginx/nginx.conf:ro
+      - ./nginx/conf.d:/etc/nginx/conf.d:ro
+      # Host-issued certificates (read-only)
+      - /etc/letsencrypt:/etc/letsencrypt:ro
+      # HTTP-01 webroot (optional; used by Certbot nginx/http-01 workflows)
+      - /var/www/certbot:/var/www/certbot:ro

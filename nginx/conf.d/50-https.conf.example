@@ -1,0 +1,66 @@
+# EXAMPLE — copy to `50-https.conf` on your VPS and adjust `server_name` + certificate paths.
+#
+# Prerequisites:
+# - Obtain certificates (Let's Encrypt recommended). Typical paths:
+#   - `/etc/letsencrypt/live/<domain>/fullchain.pem`
+#   - `/etc/letsencrypt/live/<domain>/privkey.pem`
+# - Mount `/etc/letsencrypt` read-only into the Nginx container (see `docker-compose.ssl.yml`).
+#
+# Strongly recommended: also replace `10-http.conf` with the ACME + HTTPS redirect variant
+# documented in `docs/TLS_NGINX_VPS.md` so all user traffic uses TLS.
+
+server {
+    listen 443 ssl;
+    http2 on;
+    server_name your.domain.example;
+
+    ssl_certificate     /etc/letsencrypt/live/your.domain.example/fullchain.pem;
+    ssl_certificate_key /etc/letsencrypt/live/your.domain.example/privkey.pem;
+
+    # Modern baseline TLS configuration (Mozilla “intermediate” profile, simplified).
+    ssl_session_timeout 1d;
+    ssl_session_cache shared:MSSL:10m;
+    ssl_session_tickets off;
+    ssl_protocols TLSv1.2 TLSv1.3;
+    ssl_ciphers ECDHE-ECDSA-AES128-GCM-SHA256:ECDHE-RSA-AES128-GCM-SHA256:ECDHE-ECDSA-AES256-GCM-SHA384:ECDHE-RSA-AES256-GCM-SHA384:ECDHE-ECDSA-CHACHA20-POLY1305:ECDHE-RSA-CHACHA20-POLY1305:DHE-RSA-AES128-GCM-SHA256:DHE-RSA-AES256-GCM-SHA256;
+    ssl_prefer_server_ciphers off;
+
+    add_header Strict-Transport-Security "max-age=63072000; includeSubDomains; preload" always;
+    add_header X-Frame-Options "SAMEORIGIN" always;
+    add_header X-Content-Type-Options "nosniff" always;
+    add_header Referrer-Policy "strict-origin-when-cross-origin" always;
+
+    location /api/ {
+        proxy_pass http://backend_api;
+        proxy_http_version 1.1;
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto https;
+        proxy_read_timeout 3600s;
+        proxy_send_timeout 3600s;
+    }
+
+    location /api/ws/ {
+        proxy_pass http://backend_api;
+        proxy_http_version 1.1;
+        proxy_set_header Upgrade $http_upgrade;
+        proxy_set_header Connection "upgrade";
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto https;
+        proxy_read_timeout 3600s;
+    }
+
+    location / {
+        proxy_pass http://frontend_app;
+        proxy_http_version 1.1;
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto https;
+        proxy_set_header Upgrade $http_upgrade;
+        proxy_set_header Connection "upgrade";
+    }
+}

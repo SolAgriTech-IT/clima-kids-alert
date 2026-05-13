@@ -1,0 +1,24 @@
+fastapi[standard]==0.115.6
+uvicorn[standard]==0.32.1
+sqlalchemy==2.0.36
+geoalchemy2==0.16.0
+psycopg2-binary==2.9.10
+alembic==1.14.0
+pydantic==2.10.3
+pydantic-settings==2.6.1
+python-jose[cryptography]==3.3.0
+passlib[bcrypt]==1.7.4
+# passlib 1.7.4 is incompatible with bcrypt>=4.1 (removed __about__, stricter 72-byte checks during init).
+bcrypt>=4.0.1,<4.1
+python-multipart==0.0.17
+celery[redis]==5.4.0
+redis==5.2.0
+httpx==0.28.1
+slowapi==0.1.9
+limits[redis]==3.13.0
+email-validator==2.2.0
+sendgrid==6.11.0
+twilio==9.3.7
+shapely==2.0.6
+pytest==8.3.4
+ruff==0.8.4

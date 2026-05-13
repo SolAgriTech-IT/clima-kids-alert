@@ -1,0 +1,20 @@
+# EXAMPLE — production HTTP server: ACME challenges + redirect everything else to HTTPS.
+#
+# Copy to `10-http.conf` when `50-https.conf` is enabled.
+#
+# NOTE: This disables the plain-HTTP reverse-proxy app routing on :80. All UI/API
+# traffic should go via `50-https.conf` on :443.
+
+server {
+    listen 80;
+    server_name your.domain.example;
+
+    location ^~ /.well-known/acme-challenge/ {
+        root /var/www/certbot;
+        default_type "text/plain";
+    }
+
+    location / {
+        return 301 https://$host$request_uri;
+    }
+}

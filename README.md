@@ -24,7 +24,6 @@ docker compose up --build
 ### Default administrator (seeded)
 
 - Email: `mulombodi@sol-agri-tech.org`
-- Password: `ChangeMeAfterFirstLogin!2026`
 
 The admin account is **created on every backend startup if it is missing** (even when geo data already exists). If login still fails (for example you registered the same email earlier, or a partial DB state), set **`SEED_RESET_ADMIN_PASSWORD=true`** once in `.env` / Compose, restart, log in, then turn it back to **`false`**.
 

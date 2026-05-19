@@ -67,6 +67,12 @@ def build_dashboard_summary(db: Session) -> dict[str, Any]:
 
 def build_risk_cards(db: Session) -> dict[str, Any]:
     """Map latest Open-Meteo-derived signals to the three French UI cards."""
+    from app.services.simulation import build_simulated_risk_cards, get_climate_override
+
+    override = get_climate_override()
+    if override:
+        return build_simulated_risk_cards(override)
+
     from app.models.alerting import EnvironmentalReading
 
     row = db.execute(select(EnvironmentalReading).order_by(EnvironmentalReading.observed_at.desc())).scalars().first()

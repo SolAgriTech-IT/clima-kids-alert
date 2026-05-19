@@ -2,12 +2,11 @@
 
 from __future__ import annotations
 
-from fastapi import APIRouter, Depends, HTTPException, Request, status
+from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from app.database import get_db
-from app.limiter import limiter
 from app.models.user import User, UserRole
 from app.schemas.auth import TokenResponse, UserLogin, UserRegister
 from app.schemas.user import UserOut
@@ -39,10 +38,12 @@ def register(payload: UserRegister, db: Session = Depends(get_db)) -> User:
 
 
 @router.post("/login", response_model=TokenResponse)
-@limiter.limit("30/minute")
-def login(request: Request, payload: UserLogin, db: Session = Depends(get_db)) -> TokenResponse:
-    user = db.scalars(select(User).where(User.email == str(payload.email).lower())).first()
-    if user is None or not verify_password(payload.password, user.password_hash):
+def login(
+    credentials: UserLogin,
+    db: Session = Depends(get_db),
+) -> TokenResponse:
+    user = db.scalars(select(User).where(User.email == str(credentials.email).lower())).first()
+    if user is None or not verify_password(credentials.password, user.password_hash):
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Identifiants invalides")
     if not user.is_active:
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Compte désactivé")

@@ -25,7 +25,7 @@ from app.database import SessionLocal
 from app.limiter import limiter
 from app.models import import_models
 from app.realtime_bridge import redis_subscriber_loop
-from app.routers import actions, alerts, auth, dashboard, geo, health, public, users
+from app.routers import actions, alerts, auth, dashboard, geo, health, public, simulations, users
 from app.websocket_manager import manager
 
 import_models()
@@ -85,6 +85,7 @@ def create_app() -> FastAPI:
     api.include_router(geo.router)
     api.include_router(alerts.router)
     api.include_router(actions.router)
+    api.include_router(simulations.router)
     app.include_router(api)
 
     @app.get("/api/v1/meta")

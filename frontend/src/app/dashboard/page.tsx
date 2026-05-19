@@ -7,7 +7,9 @@ import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
 
 import { Footer } from "@/components/Footer";
+import { SubscribeForm } from "@/components/SubscribeForm";
 import { api } from "@/lib/api";
+import { fetchCurrentUser, isAdminUser } from "@/lib/admin";
 
 const RiskMap = dynamic(() => import("@/components/RiskMap").then((m) => m.RiskMap), { ssr: false });
 
@@ -26,8 +28,6 @@ function severityFr(v: string) {
   }
 }
 
-type SchoolOption = { id: number; name: string };
-
 export default function DashboardPage() {
   const [tab, setTab] = useState<TabKey>("dashboard");
   const [dark, setDark] = useState(false);
@@ -36,19 +36,7 @@ export default function DashboardPage() {
   const [tables, setTables] = useState<any>(null);
   const [zones, setZones] = useState<FeatureCollection | null>(null);
   const [loadError, setLoadError] = useState<string | null>(null);
-  const [status, setStatus] = useState<string | null>(null);
-
-  const [schoolOptions, setSchoolOptions] = useState<SchoolOption[]>([]);
-  const [subEmail, setSubEmail] = useState("");
-  const [subPhone, setSubPhone] = useState("");
-  const [subWhatsapp, setSubWhatsapp] = useState("");
-  const [subSchoolId, setSubSchoolId] = useState<string>("");
-  const [subLat, setSubLat] = useState("");
-  const [subLon, setSubLon] = useState("");
-  const [chEmail, setChEmail] = useState(true);
-  const [chSms, setChSms] = useState(true);
-  const [chWa, setChWa] = useState(true);
-  const [subLoading, setSubLoading] = useState(false);
+  const [isAdmin, setIsAdmin] = useState(false);
 
   const nowLabel = useMemo(() => {
     const d = new Date();
@@ -91,55 +79,8 @@ export default function DashboardPage() {
   }, []);
 
   useEffect(() => {
-    if (tab !== "subscribe") return;
-    void api
-      .get("/geo/schools")
-      .then((r) => {
-        const feats = (r.data as FeatureCollection).features ?? [];
-        const opts: SchoolOption[] = feats
-          .map((f: any) => ({
-            id: f.properties?.id as number,
-            name: (f.properties?.name as string) ?? `École #${f.properties?.id}`,
-          }))
-          .filter((o) => typeof o.id === "number");
-        setSchoolOptions(opts);
-      })
-      .catch(() => setSchoolOptions([]));
-  }, [tab]);
-
-  async function submitSubscribe(e: React.FormEvent) {
-    e.preventDefault();
-    setSubLoading(true);
-    setStatus(null);
-    try {
-      const school_id = subSchoolId ? Number(subSchoolId) : null;
-      const home_lat = subLat.trim() ? Number(subLat) : null;
-      const home_lon = subLon.trim() ? Number(subLon) : null;
-      await api.post("/public/subscribe", {
-        email: subEmail.trim(),
-        phone_e164: subPhone.trim() || null,
-        whatsapp_e164: subWhatsapp.trim() || null,
-        school_id: school_id && !Number.isNaN(school_id) ? school_id : null,
-        home_lat: home_lat !== null && !Number.isNaN(home_lat) ? home_lat : null,
-        home_lon: home_lon !== null && !Number.isNaN(home_lon) ? home_lon : null,
-        alert_email_enabled: chEmail,
-        alert_sms_enabled: chSms,
-        alert_whatsapp_enabled: chWa,
-      });
-      setStatus("Inscription enregistrée. Vous recevrez les alertes selon les canaux choisis.");
-    } catch (err: any) {
-      const detail = err?.response?.data?.detail;
-      const msg =
-        typeof detail === "string"
-          ? detail
-          : Array.isArray(detail)
-            ? detail.map((d: any) => d.msg).join(" · ")
-            : "Échec de l’inscription. Vérifiez le format E.164 (+243…) pour téléphone / WhatsApp.";
-      setStatus(msg);
-    } finally {
-      setSubLoading(false);
-    }
-  }
+    void fetchCurrentUser().then((u) => setIsAdmin(isAdminUser(u)));
+  }, []);
 
   const globalSeverity = summary?.global_severity ?? "low";
   const alertBannerClass =
@@ -204,12 +145,21 @@ export default function DashboardPage() {
                 >
                   Recharger
                 </button>
-                <Link
-                  href="/admin/login"
-                  className="rounded-lg border border-slate-200 bg-white px-3 py-2 text-xs font-semibold text-slate-700 dark:border-slate-800 dark:bg-slate-900 dark:text-slate-200"
-                >
-                  Connexion admin
-                </Link>
+                {isAdmin ? (
+                  <Link
+                    href="/admin/simulations"
+                    className="rounded-lg bg-brand-warn px-3 py-2 text-xs font-semibold text-white"
+                  >
+                    Simulations
+                  </Link>
+                ) : (
+                  <Link
+                    href="/admin/login"
+                    className="rounded-lg border border-slate-200 bg-white px-3 py-2 text-xs font-semibold text-slate-700 dark:border-slate-800 dark:bg-slate-900 dark:text-slate-200"
+                  >
+                    Connexion admin
+                  </Link>
+                )}
               </div>
             </div>
 
@@ -378,101 +328,7 @@ export default function DashboardPage() {
               </div>
             ) : null}
 
-            {tab === "subscribe" ? (
-              <div className="mx-auto max-w-xl rounded-2xl border border-slate-200 bg-white p-6 shadow-sm dark:border-slate-800 dark:bg-slate-900">
-                <div className="mb-1 text-sm font-semibold text-brand-green">Abonnement aux alertes</div>
-                <p className="mb-4 text-xs text-slate-600 dark:text-slate-300">
-                  Inscription facultative : recevez les notifications climatiques et sanitaires pour Kolwezi. Aucun compte n’est requis pour consulter le tableau de bord public.
-                </p>
-                <form onSubmit={submitSubscribe} className="space-y-4 text-sm">
-                  <div>
-                    <label className="text-sm font-medium">E-mail (obligatoire)</label>
-                    <input
-                      required
-                      type="email"
-                      className="mt-1 w-full rounded-lg border border-slate-200 bg-white px-3 py-2 outline-none ring-brand-mint focus:ring-2 dark:border-slate-800 dark:bg-slate-950"
-                      value={subEmail}
-                      onChange={(e) => setSubEmail(e.target.value)}
-                      autoComplete="email"
-                    />
-                  </div>
-                  <div>
-                    <label className="text-sm font-medium">Téléphone (SMS), format E.164</label>
-                    <input
-                      type="tel"
-                      placeholder="+243…"
-                      className="mt-1 w-full rounded-lg border border-slate-200 bg-white px-3 py-2 outline-none ring-brand-mint focus:ring-2 dark:border-slate-800 dark:bg-slate-950"
-                      value={subPhone}
-                      onChange={(e) => setSubPhone(e.target.value)}
-                    />
-                  </div>
-                  <div>
-                    <label className="text-sm font-medium">WhatsApp, format E.164</label>
-                    <input
-                      type="tel"
-                      placeholder="+243…"
-                      className="mt-1 w-full rounded-lg border border-slate-200 bg-white px-3 py-2 outline-none ring-brand-mint focus:ring-2 dark:border-slate-800 dark:bg-slate-950"
-                      value={subWhatsapp}
-                      onChange={(e) => setSubWhatsapp(e.target.value)}
-                    />
-                  </div>
-                  <div>
-                    <label htmlFor="subscribe-school" className="text-sm font-medium">
-                      École / association (optionnel)
-                    </label>
-                    <select
-                      id="subscribe-school"
-                      className="mt-1 w-full rounded-lg border border-slate-200 bg-white px-3 py-2 dark:border-slate-800 dark:bg-slate-950"
-                      value={subSchoolId}
-                      onChange={(e) => setSubSchoolId(e.target.value)}
-                    >
-                      <option value="">— Non renseigné —</option>
-                      {schoolOptions.map((s) => (
-                        <option key={s.id} value={String(s.id)}>
-                          {s.name}
-                        </option>
-                      ))}
-                    </select>
-                  </div>
-                  <div className="grid grid-cols-2 gap-3">
-                    <div>
-                      <label className="text-sm font-medium">Latitude domicile (optionnel)</label>
-                      <input
-                        type="text"
-                        inputMode="decimal"
-                        className="mt-1 w-full rounded-lg border border-slate-200 bg-white px-3 py-2 dark:border-slate-800 dark:bg-slate-950"
-                        value={subLat}
-                        onChange={(e) => setSubLat(e.target.value)}
-                      />
-                    </div>
-                    <div>
-                      <label className="text-sm font-medium">Longitude (optionnel)</label>
-                      <input
-                        type="text"
-                        inputMode="decimal"
-                        className="mt-1 w-full rounded-lg border border-slate-200 bg-white px-3 py-2 dark:border-slate-800 dark:bg-slate-950"
-                        value={subLon}
-                        onChange={(e) => setSubLon(e.target.value)}
-                      />
-                    </div>
-                  </div>
-                  <div className="space-y-2 rounded-xl border border-slate-100 p-3 dark:border-slate-800">
-                    <div className="text-xs font-semibold text-slate-600 dark:text-slate-300">Canaux souhaités</div>
-                    <Toggle label="E-mail" checked={chEmail} onChange={setChEmail} />
-                    <Toggle label="SMS" checked={chSms} onChange={setChSms} />
-                    <Toggle label="WhatsApp" checked={chWa} onChange={setChWa} />
-                  </div>
-                  <button
-                    type="submit"
-                    disabled={subLoading}
-                    className="w-full rounded-lg bg-brand-green py-2.5 text-sm font-semibold text-white hover:bg-brand-mint disabled:opacity-60"
-                  >
-                    {subLoading ? "Envoi…" : "Valider l’abonnement"}
-                  </button>
-                </form>
-                {status ? <div className="mt-4 text-xs text-slate-700 dark:text-slate-200">{status}</div> : null}
-              </div>
-            ) : null}
+            {tab === "subscribe" ? <SubscribeForm /> : null}
           </main>
 
           <Footer />
@@ -508,11 +364,3 @@ function RiskMini(props: { title: string; value: string; sev: string; advice: st
   );
 }
 
-function Toggle(props: { label: string; checked: boolean; onChange: (v: boolean) => void }) {
-  return (
-    <label className="flex items-center justify-between gap-3 rounded-xl border border-slate-200 px-3 py-2 dark:border-slate-800">
-      <span>{props.label}</span>
-      <input type="checkbox" checked={props.checked} onChange={(e) => props.onChange(e.target.checked)} className="accent-brand-mint" />
-    </label>
-  );
-}

@@ -20,8 +20,11 @@ from sqlalchemy.orm import Session
 from app.config import Settings, get_settings
 from app.database import SessionLocal
 from app.models import import_models
+from app.models.alerting import EnvironmentalReading
 from app.models.geo import HazardArea, HazardKind, HealthCenter, School, Zone
+from app.models.subscriber import AlertSubscriber, SubscriberUserType
 from app.models.user import User, UserRole
+from app.services import ingestion
 from app.services.security import hash_password
 
 log = logging.getLogger(__name__)
@@ -68,6 +71,46 @@ def ensure_seed_admin_user(db: Session, settings: Settings) -> None:
         db.add(user)
         db.commit()
         log.warning("Admin seed: password reset for %s (SEED_RESET_ADMIN_PASSWORD=true)", email)
+        return
+
+    if user.role != UserRole.admin:
+        user.role = UserRole.admin
+        user.is_active = True
+        db.add(user)
+        db.commit()
+        log.info("Admin seed: promoted %s to admin role", email)
+
+
+def ensure_example_subscriber(db: Session, settings: Settings) -> None:
+    """Default open-source example: email channel only."""
+    email = settings.seed_admin_email.strip().lower()
+    if not email:
+        return
+    row = db.scalars(select(AlertSubscriber).where(AlertSubscriber.email == email)).first()
+    if row is None:
+        db.add(
+            AlertSubscriber(
+                email=email,
+                user_type=SubscriberUserType.other,
+                alert_email_enabled=True,
+                alert_sms_enabled=False,
+                alert_whatsapp_enabled=False,
+                is_active=True,
+            ),
+        )
+        db.commit()
+        log.info("Subscriber seed: created example %s (email only)", email)
+
+
+def ensure_initial_environmental_reading(db: Session) -> None:
+    """Store one Open-Meteo bundle so dashboard cards show live API data immediately."""
+    if int(db.scalar(select(func.count()).select_from(EnvironmentalReading)) or 0) > 0:
+        return
+    try:
+        ingestion.fetch_and_store_reading(db)
+        log.info("Environmental seed: initial Open-Meteo reading stored")
+    except Exception:
+        log.exception("Environmental seed failed (Celery pipeline will retry)")
 
 
 def seed() -> None:
@@ -76,6 +119,8 @@ def seed() -> None:
     db = SessionLocal()
     try:
         ensure_seed_admin_user(db, settings)
+        ensure_example_subscriber(db, settings)
+        ensure_initial_environmental_reading(db)
 
         if int(db.scalar(select(func.count()).select_from(Zone)) or 0) > 0:
             log.info("Geo seed skipped: zones already present")

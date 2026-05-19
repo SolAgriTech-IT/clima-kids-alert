@@ -33,6 +33,67 @@ The admin account is **created on every backend startup if it is missing** (even
 
 Change this password immediately in any shared or production environment.
 
+If login fails (wrong password or account registered earlier as a normal user), set **`SEED_RESET_ADMIN_PASSWORD=true`** once, restart the backend, sign in, then set it back to **`false`**.
+
+### Administrateurs (open source)
+
+| Méthode | Action |
+|--------|--------|
+| Variables d’environnement | `SEED_ADMIN_EMAIL`, `SEED_ADMIN_PASSWORD` dans `.env` / `docker-compose.yml` (service `backend`) |
+| Récupération mot de passe | `SEED_RESET_ADMIN_PASSWORD=true` (une fois) |
+| CLI | `docker compose exec backend python -m app.scripts.manage_admin create email@domaine.org 'MotDePasseSecurise12!'` |
+| CLI liste / rôles | `manage_admin list`, `manage_admin promote`, `manage_admin demote` |
+| Interface web (connecté admin) | `POST /api/v1/admin/simulations/admins`, `DELETE /api/v1/admin/simulations/admins/{id}` |
+
+Page admin après connexion : **`/admin/simulations`** (simulateur climat, alerte de test, message officiel aux abonnés).
+
+## Base PostgreSQL des abonnés
+
+Le dépôt **ne contient aucune donnée utilisateur réelle**. Vous déployez votre propre base :
+
+### Cas 1 — PostgreSQL dans Docker (défaut)
+
+Fichiers à modifier :
+
+| Fichier | Variables |
+|---------|-----------|
+| `.env` | `POSTGRES_USER`, `POSTGRES_PASSWORD`, `POSTGRES_DB`, `DATABASE_URL` |
+| `docker-compose.yml` | service `db` (`environment`, volume `postgres_data`), service `backend` (`DATABASE_URL`) |
+
+Schéma applicatif : migrations Alembic (`backend/alembic/versions/`, dont `003_subscriber_enhancements.py`).
+
+Scripts SQL optionnels (triggers de fusion) : `db/postgresql/001_alert_subscribers_schema.sql`, `002_seed_example_subscriber.sql`.
+
+Exemple après démarrage :
+
+```bash
+docker compose exec db psql -U clima -d clima_kids -f /path/mounted/001_alert_subscribers_schema.sql
+```
+
+Abonné exemple (e-mail seul) : `mulombodi@sol-agri-tech.org` — créé au seed si absent.
+
+### Cas 2 — PostgreSQL externe
+
+1. Créez une base PostGIS sur votre serveur.
+2. Dans `.env` : `DATABASE_URL=postgresql+psycopg2://USER:PASS@HOST:5432/DBNAME`
+3. Commentez ou supprimez le service `db` dans `docker-compose.yml` si vous n’utilisez pas le conteneur local.
+4. Lancez les migrations : `docker compose run --rm backend alembic upgrade head`
+5. Appliquez les scripts `db/postgresql/*.sql` si vous voulez les triggers PL/pgSQL de fusion.
+
+Fusion intelligente : même numéro + canal SMS puis WhatsApp → une seule ligne, canaux cumulés (voir `backend/app/services/subscriber_merge.py` et triggers SQL).
+
+### Formspree → PostgreSQL (import automatique)
+
+Formulaire public : `https://formspree.io/f/xeenyjld` (également envoyé en parallèle à l’API).
+
+Pour alimenter PostgreSQL sans webhook payant :
+
+1. Exportez les soumissions Formspree en CSV vers `data/inbox/formspree_export.csv` (dossier gitignoré).
+2. Import : `docker compose exec backend python -m app.scripts.formspree_import data/inbox/formspree_export.csv`
+3. Les CSV traités sont archivés sous `data/inbox/processed/` et supprimés après 24 h.
+
+Alternative : workflow **n8n** (e-mail Formspree → HTTP `POST /api/v1/public/subscribe`).
+
 ## Déploiement sans Docker (VPS, mutualisé)
 
 Pour une mise en production **sans conteneurs** (FastAPI seul ou FastAPI + fichiers statiques Next.js, options Redis/Celery), suivez **`docs/DEPLOYMENT.md`** et le guide développeur **`docs/DEVELOPER.md`** (variables `USE_REDIS`, `USE_CELERY`, `STATIC_SITE_DIR`, etc.).
@@ -54,7 +115,15 @@ Pour une mise en production **sans conteneurs** (FastAPI seul ou FastAPI + fichi
 
 ## Notifications
 
-Email (SendGrid) and Twilio (SMS + WhatsApp) are implemented end-to-end. If credentials are missing, deliveries are recorded as `skipped` with explicit error messages so operators can distinguish misconfiguration from provider failures.
+Les **inscriptions Formspree** et les **alertes** (simulation admin, risques, broadcast) sont des circuits distincts. Les alertes partent via **e-mail** (SendGrid ou SMTP) et **Twilio** (SMS / WhatsApp).
+
+| Canal | Gratuit / local | Variables |
+|-------|-----------------|-----------|
+| E-mail local Docker | **Mailpit** → http://localhost:8025 | `SMTP_HOST=mailpit`, `SMTP_PORT=1025`, `SMTP_USE_TLS=false` (défaut Compose) |
+| E-mail production | [SendGrid](https://sendgrid.com) (~100/j) ou [Brevo](https://www.brevo.com) SMTP (~300/j) | `SENDGRID_API_KEY` ou `SMTP_HOST` + identifiants |
+| SMS / WhatsApp | [Twilio essai](https://www.twilio.com/try-twilio) (numéros vérifiés en test) | `TWILIO_*` |
+
+Sans configuration, les envois sont enregistrés en base avec le statut `skipped` et le motif (visible sur la page **Simulations** après chaque envoi).
 
 ## Documentation
 

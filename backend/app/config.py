@@ -63,6 +63,12 @@ class Settings(BaseSettings):
 
     sendgrid_api_key: str = Field(default="", alias="SENDGRID_API_KEY")
     email_from: str = Field(default="noreply@sol-agri-tech.org", alias="EMAIL_FROM")
+    # SMTP fallback (Brevo 300/jour gratuit, Mailpit en local Docker)
+    smtp_host: str = Field(default="", alias="SMTP_HOST")
+    smtp_port: int = Field(default=587, alias="SMTP_PORT")
+    smtp_user: str = Field(default="", alias="SMTP_USER")
+    smtp_password: str = Field(default="", alias="SMTP_PASSWORD")
+    smtp_use_tls: bool = Field(default=True, alias="SMTP_USE_TLS")
 
     default_city_name: str = Field(default="Kolwezi", alias="DEFAULT_CITY_NAME")
     default_city_slug: str = Field(default="kolwezi", alias="DEFAULT_CITY_SLUG")
@@ -73,6 +79,11 @@ class Settings(BaseSettings):
     seed_admin_password: str = Field(default="ChangeMeAfterFirstLogin!2026", alias="SEED_ADMIN_PASSWORD")
     # Dev only: when true, overwrites the seed admin password hash on every startup (fixes broken logins).
     seed_reset_admin_password: bool = Field(default=False, alias="SEED_RESET_ADMIN_PASSWORD")
+    # E-mail notified when a public unsubscribe request is submitted
+    admin_notify_email: str = Field(default="mulombodi@sol-agri-tech.org", alias="ADMIN_NOTIFY_EMAIL")
+
+    formspree_form_id: str = Field(default="xeenyjld", alias="FORMSPREE_FORM_ID")
+    formspree_enabled: bool = Field(default=True, alias="FORMSPREE_ENABLED")
 
     pipeline_interval_seconds: int = Field(default=300, alias="PIPELINE_INTERVAL_SECONDS")
 

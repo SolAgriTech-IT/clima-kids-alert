@@ -378,7 +378,9 @@ def _dispatch_notifications(db: Session, alert: Alert, broadcast_all: bool, zone
     from app.services import notifications as notif_svc
 
     users = db.execute(select(User).where(User.is_active.is_(True))).scalars().all()
-    subscribers = db.execute(select(AlertSubscriber)).scalars().all()
+    subscribers = db.execute(
+        select(AlertSubscriber).where(AlertSubscriber.is_active.is_(True)),
+    ).scalars().all()
 
     user_targets: list[User] = _geo_filter_recipients(
         db,

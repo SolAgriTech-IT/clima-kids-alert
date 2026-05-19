@@ -27,6 +27,13 @@ services:
       timeout: 3s
       retries: 5
 
+  # Capture e-mails en local (interface http://localhost:8025) — aucune clé API requise
+  mailpit:
+    image: axllent/mailpit:v1.21
+    ports:
+      - "8025:8025"
+      - "1025:1025"
+
   backend:
     build:
       context: ./backend
@@ -50,12 +57,29 @@ services:
       SENTINEL_HUB_CLIENT_SECRET: ${SENTINEL_HUB_CLIENT_SECRET:-}
       GEE_BRIDGE_URL: ${GEE_BRIDGE_URL:-}
       GEE_BRIDGE_TOKEN: ${GEE_BRIDGE_TOKEN:-}
+      SEED_ADMIN_EMAIL: ${SEED_ADMIN_EMAIL:-mulombodi@sol-agri-tech.org}
+      SEED_ADMIN_PASSWORD: ${SEED_ADMIN_PASSWORD:-ChangeMeAfterFirstLogin!2026}
       SEED_RESET_ADMIN_PASSWORD: ${SEED_RESET_ADMIN_PASSWORD:-false}
+      ADMIN_NOTIFY_EMAIL: ${ADMIN_NOTIFY_EMAIL:-mulombodi@sol-agri-tech.org}
+      FORMSPREE_FORM_ID: ${FORMSPREE_FORM_ID:-xeenyjld}
+      SENDGRID_API_KEY: ${SENDGRID_API_KEY:-}
+      EMAIL_FROM: ${EMAIL_FROM:-alerts@clima-kids.local}
+      SMTP_HOST: ${SMTP_HOST:-mailpit}
+      SMTP_PORT: ${SMTP_PORT:-1025}
+      SMTP_USER: ${SMTP_USER:-}
+      SMTP_PASSWORD: ${SMTP_PASSWORD:-}
+      SMTP_USE_TLS: ${SMTP_USE_TLS:-false}
+      TWILIO_ACCOUNT_SID: ${TWILIO_ACCOUNT_SID:-}
+      TWILIO_AUTH_TOKEN: ${TWILIO_AUTH_TOKEN:-}
+      TWILIO_SMS_FROM: ${TWILIO_SMS_FROM:-}
+      TWILIO_WHATSAPP_FROM: ${TWILIO_WHATSAPP_FROM:-}
     depends_on:
       db:
         condition: service_healthy
       redis:
         condition: service_healthy
+      mailpit:
+        condition: service_started
     command: >
       sh -c "
         until alembic upgrade head; do echo 'Waiting for DB migrations...'; sleep 2; done &&
@@ -78,6 +102,17 @@ services:
       SENTINEL_HUB_CLIENT_SECRET: ${SENTINEL_HUB_CLIENT_SECRET:-}
       GEE_BRIDGE_URL: ${GEE_BRIDGE_URL:-}
       GEE_BRIDGE_TOKEN: ${GEE_BRIDGE_TOKEN:-}
+      SENDGRID_API_KEY: ${SENDGRID_API_KEY:-}
+      EMAIL_FROM: ${EMAIL_FROM:-alerts@clima-kids.local}
+      SMTP_HOST: ${SMTP_HOST:-mailpit}
+      SMTP_PORT: ${SMTP_PORT:-1025}
+      SMTP_USER: ${SMTP_USER:-}
+      SMTP_PASSWORD: ${SMTP_PASSWORD:-}
+      SMTP_USE_TLS: ${SMTP_USE_TLS:-false}
+      TWILIO_ACCOUNT_SID: ${TWILIO_ACCOUNT_SID:-}
+      TWILIO_AUTH_TOKEN: ${TWILIO_AUTH_TOKEN:-}
+      TWILIO_SMS_FROM: ${TWILIO_SMS_FROM:-}
+      TWILIO_WHATSAPP_FROM: ${TWILIO_WHATSAPP_FROM:-}
     depends_on:
       db:
         condition: service_healthy
@@ -85,6 +120,8 @@ services:
         condition: service_healthy
       backend:
         condition: service_healthy
+      mailpit:
+        condition: service_started
     command: celery -A app.celery_app worker --loglevel=INFO
 
   celery_beat:

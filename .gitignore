@@ -10,6 +10,14 @@ node_modules/
 
 # Environment
 .env
+
+# Local / funder docs (not shipped in open-source repo)
+docs/FUNDER_TECHNICAL_OVERVIEW.md
+docs/UNICEF_Venture_Fund_Climate_Health_Form_Answers.md
+docs/build_funder_docx.py
+
+# Formspree CSV inbox (transient imports)
+data/inbox/
 .env.local
 
 # Docker
